@@ -60,7 +60,10 @@ function createDetectionsTable(db: Database.Database): void {
       platforms TEXT,
       kql_category TEXT,
       kql_tags TEXT,
-      kql_keywords TEXT
+      kql_keywords TEXT,
+      sublime_attack_types TEXT,
+      sublime_detection_methods TEXT,
+      sublime_tactics TEXT
     )
   `);
 }
@@ -88,6 +91,9 @@ function createDetectionsFts(db: Database.Database): void {
       kql_category,
       kql_tags,
       kql_keywords,
+      sublime_attack_types,
+      sublime_detection_methods,
+      sublime_tactics,
       content='detections',
       content_rowid='rowid'
     )
@@ -101,26 +107,26 @@ function createDetectionsTriggers(db: Database.Database): void {
   // After INSERT trigger
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_ai AFTER INSERT ON detections BEGIN
-      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords);
+      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords, NEW.sublime_attack_types, NEW.sublime_detection_methods, NEW.sublime_tactics);
     END
   `);
 
   // After DELETE trigger
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_ad AFTER DELETE ON detections BEGIN
-      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords);
+      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords, OLD.sublime_attack_types, OLD.sublime_detection_methods, OLD.sublime_tactics);
     END
   `);
 
   // After UPDATE trigger
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_au AFTER UPDATE ON detections BEGIN
-      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords);
-      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords);
+      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords, OLD.sublime_attack_types, OLD.sublime_detection_methods, OLD.sublime_tactics);
+      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords, NEW.sublime_attack_types, NEW.sublime_detection_methods, NEW.sublime_tactics);
     END
   `);
 }

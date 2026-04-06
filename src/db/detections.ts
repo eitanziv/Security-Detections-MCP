@@ -21,7 +21,7 @@ export interface ValidationResult {
 }
 
 export interface TechniqueIdFilters {
-  source_type?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql';
+  source_type?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime';
   tactic?: string;
   severity?: string;
 }
@@ -54,7 +54,7 @@ export interface DetectionSuggestion {
 export interface NavigatorLayerOptions {
   name: string;
   description?: string;
-  source_type?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql';
+  source_type?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime';
   tactic?: string;
   severity?: string;
 }
@@ -121,7 +121,7 @@ function rowToDetection(row: Record<string, unknown>): Detection {
     name: row.name as string,
     description: row.description as string || '',
     query: row.query as string || '',
-    source_type: row.source_type as 'sigma' | 'splunk_escu' | 'elastic' | 'kql',
+    source_type: row.source_type as 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime',
     mitre_ids: safeJsonParse<string[]>(row.mitre_ids as string, []),
     logsource_category: row.logsource_category as string | null,
     logsource_product: row.logsource_product as string | null,
@@ -150,6 +150,9 @@ function rowToDetection(row: Record<string, unknown>): Detection {
     kql_category: row.kql_category as string | null,
     kql_tags: safeJsonParse<string[]>(row.kql_tags as string, []),
     kql_keywords: safeJsonParse<string[]>(row.kql_keywords as string, []),
+    sublime_attack_types: safeJsonParse<string[]>(row.sublime_attack_types as string, []),
+    sublime_detection_methods: safeJsonParse<string[]>(row.sublime_detection_methods as string, []),
+    sublime_tactics: safeJsonParse<string[]>(row.sublime_tactics as string, []),
   };
 }
 
@@ -174,15 +177,16 @@ export function insertDetection(detection: Detection): void {
   const database = getDb();
   
   const stmt = database.prepare(`
-    INSERT OR REPLACE INTO detections 
-    (id, name, description, query, source_type, mitre_ids, logsource_category, 
-     logsource_product, logsource_service, severity, status, author, 
+    INSERT OR REPLACE INTO detections
+    (id, name, description, query, source_type, mitre_ids, logsource_category,
+     logsource_product, logsource_service, severity, status, author,
      date_created, date_modified, refs, falsepositives, tags, file_path, raw_yaml,
      cves, analytic_stories, data_sources, detection_type, asset_type, security_domain,
-     process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords,
+     sublime_attack_types, sublime_detection_methods, sublime_tactics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  
+
   stmt.run(
     detection.id,
     detection.name,
@@ -216,7 +220,10 @@ export function insertDetection(detection: Detection): void {
     JSON.stringify(detection.platforms),
     detection.kql_category,
     JSON.stringify(detection.kql_tags),
-    JSON.stringify(detection.kql_keywords)
+    JSON.stringify(detection.kql_keywords),
+    JSON.stringify(detection.sublime_attack_types),
+    JSON.stringify(detection.sublime_detection_methods),
+    JSON.stringify(detection.sublime_tactics)
   );
 }
 
@@ -289,7 +296,7 @@ export function listDetections(limit: number = 100, offset: number = 0): Detecti
 /**
  * List detections filtered by source type.
  */
-export function listBySource(sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql', limit: number = 100, offset: number = 0): Detection[] {
+export function listBySource(sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime', limit: number = 100, offset: number = 0): Detection[] {
   const database = getDb();
   
   const stmt = database.prepare('SELECT * FROM detections WHERE source_type = ? ORDER BY name LIMIT ? OFFSET ?');
@@ -527,7 +534,8 @@ export function getStats(): IndexStats {
   const splunk = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'splunk_escu'").get() as { count: number }).count;
   const elastic = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'elastic'").get() as { count: number }).count;
   const kql = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'kql'").get() as { count: number }).count;
-  
+  const sublime = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'sublime'").get() as { count: number }).count;
+
   // Count by severity
   const severityRows = database.prepare(`
     SELECT severity, COUNT(*) as count FROM detections 
@@ -617,6 +625,7 @@ export function getStats(): IndexStats {
     splunk_escu: splunk,
     elastic,
     kql,
+    sublime,
     by_severity,
     by_logsource_product,
     mitre_coverage,
@@ -804,7 +813,7 @@ export function getTechniqueIds(filters: TechniqueIdFilters = {}): string[] {
 /**
  * Analyze coverage by tactic and identify strengths/weaknesses.
  */
-export function analyzeCoverage(sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql'): CoverageReport {
+export function analyzeCoverage(sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime'): CoverageReport {
   const database = getDb();
   
   let countSql = 'SELECT COUNT(DISTINCT id) as count FROM detections';
@@ -887,7 +896,7 @@ export function analyzeCoverage(sourceType?: 'sigma' | 'splunk_escu' | 'elastic'
  */
 export function identifyGaps(
   threatProfile: string,
-  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql'
+  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime'
 ): GapAnalysis {
   const targetTechniques = THREAT_PROFILES[threatProfile.toLowerCase()] || THREAT_PROFILES['apt'];
   
@@ -943,7 +952,7 @@ export function identifyGaps(
  */
 export function suggestDetections(
   techniqueId: string,
-  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql'
+  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime'
 ): DetectionSuggestion {
   const database = getDb();
   
@@ -1100,7 +1109,7 @@ export function searchDetectionList(query: string, limit: number = 500): Detecti
  * List detections by source with optional name filter, returning lightweight results.
  */
 export function listDetectionsBySourceLight(
-  sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql',
+  sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime',
   nameFilter?: string,
   limit: number = 500
 ): DetectionListItem[] {
@@ -1144,6 +1153,7 @@ export function compareDetectionsBySource(topic: string, limit: number = 100): S
     splunk_escu: [],
     elastic: [],
     kql: [],
+    sublime: [],
   };
   
   const byTactic: Record<string, Record<string, number>> = {};
@@ -1192,7 +1202,7 @@ export function compareDetectionsBySource(topic: string, limit: number = 100): S
  */
 export function getDetectionNamesByPattern(
   pattern: string,
-  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql'
+  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime'
 ): { source: string; detections: Array<{ name: string; id: string }> }[] {
   const database = getDb();
   
@@ -1236,7 +1246,7 @@ export function countDetectionsBySource(topic: string): Record<string, number> {
   
   const rows = stmt.all(topic) as { source_type: string; count: number }[];
   
-  const result: Record<string, number> = { sigma: 0, splunk_escu: 0, elastic: 0, kql: 0 };
+  const result: Record<string, number> = { sigma: 0, splunk_escu: 0, elastic: 0, kql: 0, sublime: 0 };
   for (const row of rows) {
     result[row.source_type] = row.count;
   }

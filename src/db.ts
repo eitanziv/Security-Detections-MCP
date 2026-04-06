@@ -58,7 +58,10 @@ export function initDb(): Database.Database {
       platforms TEXT,
       kql_category TEXT,
       kql_tags TEXT,
-      kql_keywords TEXT
+      kql_keywords TEXT,
+      sublime_attack_types TEXT,
+      sublime_detection_methods TEXT,
+      sublime_tactics TEXT
     )
   `);
   
@@ -82,32 +85,35 @@ export function initDb(): Database.Database {
       kql_category,
       kql_tags,
       kql_keywords,
+      sublime_attack_types,
+      sublime_detection_methods,
+      sublime_tactics,
       content='detections',
       content_rowid='rowid'
     )
   `);
-  
+
   // Create triggers to keep FTS in sync
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_ai AFTER INSERT ON detections BEGIN
-      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords);
+      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords, NEW.sublime_attack_types, NEW.sublime_detection_methods, NEW.sublime_tactics);
     END
   `);
-  
+
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_ad AFTER DELETE ON detections BEGIN
-      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords);
+      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords, OLD.sublime_attack_types, OLD.sublime_detection_methods, OLD.sublime_tactics);
     END
   `);
-  
+
   db.exec(`
     CREATE TRIGGER IF NOT EXISTS detections_au AFTER UPDATE ON detections BEGIN
-      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords);
-      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords);
+      INSERT INTO detections_fts(detections_fts, rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES ('delete', OLD.rowid, OLD.id, OLD.name, OLD.description, OLD.query, OLD.mitre_ids, OLD.tags, OLD.cves, OLD.analytic_stories, OLD.data_sources, OLD.process_names, OLD.file_paths, OLD.registry_paths, OLD.mitre_tactics, OLD.platforms, OLD.kql_category, OLD.kql_tags, OLD.kql_keywords, OLD.sublime_attack_types, OLD.sublime_detection_methods, OLD.sublime_tactics);
+      INSERT INTO detections_fts(rowid, id, name, description, query, mitre_ids, tags, cves, analytic_stories, data_sources, process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords, sublime_attack_types, sublime_detection_methods, sublime_tactics)
+      VALUES (NEW.rowid, NEW.id, NEW.name, NEW.description, NEW.query, NEW.mitre_ids, NEW.tags, NEW.cves, NEW.analytic_stories, NEW.data_sources, NEW.process_names, NEW.file_paths, NEW.registry_paths, NEW.mitre_tactics, NEW.platforms, NEW.kql_category, NEW.kql_tags, NEW.kql_keywords, NEW.sublime_attack_types, NEW.sublime_detection_methods, NEW.sublime_tactics);
     END
   `);
   
@@ -223,15 +229,16 @@ export function insertDetection(detection: Detection): void {
   const database = initDb();
   
   const stmt = database.prepare(`
-    INSERT OR REPLACE INTO detections 
-    (id, name, description, query, source_type, mitre_ids, logsource_category, 
-     logsource_product, logsource_service, severity, status, author, 
+    INSERT OR REPLACE INTO detections
+    (id, name, description, query, source_type, mitre_ids, logsource_category,
+     logsource_product, logsource_service, severity, status, author,
      date_created, date_modified, refs, falsepositives, tags, file_path, raw_yaml,
      cves, analytic_stories, data_sources, detection_type, asset_type, security_domain,
-     process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     process_names, file_paths, registry_paths, mitre_tactics, platforms, kql_category, kql_tags, kql_keywords,
+     sublime_attack_types, sublime_detection_methods, sublime_tactics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
-  
+
   stmt.run(
     detection.id,
     detection.name,
@@ -265,7 +272,10 @@ export function insertDetection(detection: Detection): void {
     JSON.stringify(detection.platforms),
     detection.kql_category,
     JSON.stringify(detection.kql_tags),
-    JSON.stringify(detection.kql_keywords)
+    JSON.stringify(detection.kql_keywords),
+    JSON.stringify(detection.sublime_attack_types),
+    JSON.stringify(detection.sublime_detection_methods),
+    JSON.stringify(detection.sublime_tactics)
   );
 }
 
@@ -275,7 +285,7 @@ function rowToDetection(row: Record<string, unknown>): Detection {
     name: row.name as string,
     description: row.description as string || '',
     query: row.query as string || '',
-    source_type: row.source_type as 'sigma' | 'splunk_escu' | 'elastic' | 'kql',
+    source_type: row.source_type as 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime',
     mitre_ids: JSON.parse(row.mitre_ids as string || '[]'),
     logsource_category: row.logsource_category as string | null,
     logsource_product: row.logsource_product as string | null,
@@ -304,6 +314,9 @@ function rowToDetection(row: Record<string, unknown>): Detection {
     kql_category: row.kql_category as string | null,
     kql_tags: JSON.parse(row.kql_tags as string || '[]'),
     kql_keywords: JSON.parse(row.kql_keywords as string || '[]'),
+    sublime_attack_types: JSON.parse(row.sublime_attack_types as string || '[]'),
+    sublime_detection_methods: JSON.parse(row.sublime_detection_methods as string || '[]'),
+    sublime_tactics: JSON.parse(row.sublime_tactics as string || '[]'),
   };
 }
 
@@ -341,7 +354,7 @@ export function listDetections(limit: number = 100, offset: number = 0): Detecti
   return rows.map(rowToDetection);
 }
 
-export function listBySource(sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql', limit: number = 100, offset: number = 0): Detection[] {
+export function listBySource(sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime', limit: number = 100, offset: number = 0): Detection[] {
   const database = initDb();
   
   const stmt = database.prepare('SELECT * FROM detections WHERE source_type = ? ORDER BY name LIMIT ? OFFSET ?');
@@ -539,7 +552,8 @@ export function getStats(): IndexStats {
   const splunk = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'splunk_escu'").get() as { count: number }).count;
   const elastic = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'elastic'").get() as { count: number }).count;
   const kql = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'kql'").get() as { count: number }).count;
-  
+  const sublime = (database.prepare("SELECT COUNT(*) as count FROM detections WHERE source_type = 'sublime'").get() as { count: number }).count;
+
   // Count by severity
   const severityRows = database.prepare(`
     SELECT severity, COUNT(*) as count FROM detections 
@@ -629,6 +643,7 @@ export function getStats(): IndexStats {
     splunk_escu: splunk,
     elastic,
     kql,
+    sublime,
     by_severity,
     by_logsource_product,
     mitre_coverage,
@@ -1350,7 +1365,7 @@ export function searchDetectionList(query: string, limit: number = 500): Detecti
 
 // Get name+ID list filtered by source
 export function listDetectionsBySourceLight(
-  sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql',
+  sourceType: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime',
   nameFilter?: string,
   limit: number = 500
 ): DetectionListItem[] {
@@ -1444,7 +1459,7 @@ export function compareDetectionsBySource(topic: string, limit: number = 100): S
 // Get detection names and IDs matching a pattern, grouped by source
 export function getDetectionNamesByPattern(
   pattern: string,
-  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql'
+  sourceType?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime'
 ): { source: string; detections: Array<{ name: string; id: string }> }[] {
   const database = initDb();
   
