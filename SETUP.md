@@ -140,6 +140,9 @@ cd sublime-rules && git sparse-checkout set detection-rules && cd ..
 # CrowdStrike CQL Hub (~139+ queries)
 git clone --depth 1 https://github.com/ByteRay-Labs/Query-Hub.git cql-hub
 
+# MITRE ATT&CK STIX data (172 actors, 691 techniques, 784 software)
+git clone --depth 1 https://github.com/mitre-attack/attack-stix-data.git
+
 cd ..
 ```
 
@@ -168,7 +171,8 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (project):
         "KQL_PATHS": "/absolute/path/to/detections/kql-bertjanp,/absolute/path/to/detections/kql-jkerai1",
         "STORY_PATHS": "/absolute/path/to/detections/security_content/stories",
         "SUBLIME_PATHS": "/absolute/path/to/detections/sublime-rules/detection-rules",
-        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries"
+        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries",
+        "ATTACK_STIX_PATH": "/absolute/path/to/attack-stix-data/enterprise-attack/enterprise-attack.json"
       }
     }
   }
@@ -195,7 +199,8 @@ Add to `~/.vscode/mcp.json`:
         "KQL_PATHS": "/absolute/path/to/detections/kql-bertjanp,/absolute/path/to/detections/kql-jkerai1",
         "STORY_PATHS": "/absolute/path/to/detections/security_content/stories",
         "SUBLIME_PATHS": "/absolute/path/to/detections/sublime-rules/detection-rules",
-        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries"
+        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries",
+        "ATTACK_STIX_PATH": "/absolute/path/to/attack-stix-data/enterprise-attack/enterprise-attack.json"
       }
     }
   }
@@ -243,7 +248,8 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
         "SIGMA_PATHS": "/absolute/path/to/detections/sigma/rules",
         "SPLUNK_PATHS": "/absolute/path/to/detections/security_content/detections",
         "SUBLIME_PATHS": "/absolute/path/to/detections/sublime-rules/detection-rules",
-        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries"
+        "CQL_HUB_PATHS": "/absolute/path/to/detections/cql-hub/queries",
+        "ATTACK_STIX_PATH": "/absolute/path/to/attack-stix-data/enterprise-attack/enterprise-attack.json"
       }
     }
   }

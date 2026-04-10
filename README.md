@@ -6,7 +6,42 @@ An MCP (Model Context Protocol) server that lets LLMs query a unified database o
 
 [![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=security-detections&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsInNlY3VyaXR5LWRldGVjdGlvbnMtbWNwIl0sImVudiI6eyJTSUdNQV9QQVRIUyI6Ii9wYXRoL3RvL3NpZ21hL3J1bGVzLC9wYXRoL3RvL3NpZ21hL3J1bGVzLXRocmVhdC1odW50aW5nIiwiU1BMVU5LX1BBVEhTIjoiL3BhdGgvdG8vc2VjdXJpdHlfY29udGVudC9kZXRlY3Rpb25zIiwiU1RPUllfUEFUSFMiOiIvcGF0aC90by9zZWN1cml0eV9jb250ZW50L3N0b3JpZXMiLCJFTEFTVElDX1BBVEhTIjoiL3BhdGgvdG8vZGV0ZWN0aW9uLXJ1bGVzL3J1bGVzIiwiS1FMX1BBVEhTIjoiL3BhdGgvdG8va3FsLXJ1bGVzIiwiU1VCTElNRV9QQVRIUyI6Ii9wYXRoL3RvL3N1YmxpbWUtcnVsZXMvZGV0ZWN0aW9uLXJ1bGVzIiwiQ1FMX0hVQl9QQVRIUyI6Ii9wYXRoL3RvL2NxbC1odWIvcXVlcmllcyJ9fQ==)
 
-## What's New in 3.2 - Procedure-Level Coverage Analysis
+## What's New in 3.2
+
+### MITRE ATT&CK STIX Integration & Threat Actor Coverage
+
+Ingest the official MITRE ATT&CK STIX bundle to auto-populate **172 threat actors**, **784 software/malware**, and **4,362 actor-technique relationships**. Answer "What's our coverage against APT29?" with a single tool call.
+
+- **`analyze_actor_coverage`** - Coverage analysis against a specific threat actor: which of their known techniques have detections, coverage %, and prioritized gaps
+- **`list_actors`** - Browse all 172 MITRE ATT&CK threat actors with technique counts
+- **`compare_actor_coverage`** - Compare coverage across multiple actors, find shared gaps
+- **`get_actor_profile`** - Full actor dossier: description, aliases, techniques, software, coverage status
+
+```
+"What's our coverage against APT29?"
+
+APT29 (Cozy Bear, Midnight Blizzard, NOBELIUM)
+Techniques: 66 | Covered: 48 | Gaps: 18 | Coverage: 73%
+
+  By Tactic:
+    credential-access: 7/8 (88%)    persistence: 12/15 (80%)
+    defense-evasion: 10/15 (67%)    initial-access: 5/9 (56%)
+
+  Priority Gaps:
+    T1021.007 Cloud Services (lateral-movement)
+    T1556.006 Multi-Factor Authentication (credential-access, defense-evasion)
+    T1550.004 Web Session Cookie (defense-evasion, lateral-movement)
+```
+
+**Setup**: Download `enterprise-attack.json` and set `ATTACK_STIX_PATH`:
+```bash
+git clone https://github.com/mitre-attack/attack-stix-data.git
+# Set ATTACK_STIX_PATH=/path/to/attack-stix-data/enterprise-attack/enterprise-attack.json
+```
+
+### Materialized Relationship Graph
+
+Junction tables (`detection_techniques`, `technique_tactics`) replace JSON LIKE scans with indexed JOINs. Queries like `list_by_mitre` are now backed by proper SQL joins instead of `WHERE mitre_ids LIKE '%T1059%'` patterns. Dynamic tactic totals from STIX replace hardcoded values in coverage analysis.
 
 ### Procedure-Level Coverage Analysis
 
@@ -14,7 +49,7 @@ Go beyond "we cover T1059.001" to answer **which specific behaviors** your detec
 
 - **`analyze_procedure_coverage`** - Break down a technique into behavioral procedures (encoded commands, download cradles, AMSI bypass, etc.) and show which ones your detections cover vs. miss
 - **`compare_procedure_coverage`** - Cross-source matrix showing which source catches which procedures — reveals single-source gaps and redundancy
-- **`generate_navigator_layer`** - Export ATT&CK Navigator JSON layers, filterable by source/tactic/severity, ready to import at [mitre-attack.github.io/attack-navigator](https://mitre-attack.github.io/attack-navigator/)
+- **`generate_navigator_layer`** - Export ATT&CK Navigator JSON layers, filterable by source/tactic/severity/actor, ready to import at [mitre-attack.github.io/attack-navigator](https://mitre-attack.github.io/attack-navigator/)
 
 ```
 "Are we actually covered for credential dumping?"

@@ -17,6 +17,11 @@ import {
   listBySource,
   compareDetectionsBySource,
   generateNavigatorLayer,
+  isStixLoaded,
+  getActorByName,
+  getActorCoverage,
+  getActorTechniques,
+  getSoftwareForActor,
 } from '../db/index.js';
 
 import {
@@ -155,6 +160,12 @@ export const resourceTemplates: ResourceTemplateDefinition[] = [
     description: 'ATT&CK Navigator layer filtered by detection source (sigma, splunk_escu, elastic, kql, sublime, crowdstrike_cql)',
     mimeType: 'application/json',
   },
+  {
+    uriTemplate: 'detection://navigator/actor/{actorName}',
+    name: 'Actor-Filtered Navigator Layer',
+    description: 'ATT&CK Navigator layer showing detection coverage for a specific threat actor\'s known techniques',
+    mimeType: 'application/json',
+  },
 ];
 
 // =============================================================================
@@ -291,28 +302,66 @@ function getSourceResource(sourceType: string): unknown {
 }
 
 /**
- * Get threat actor profile from knowledge graph
+ * Get threat actor profile — checks STIX data first, falls back to knowledge graph
  */
 function getActorResource(actorName: string): unknown {
+  // Try STIX-sourced data first (authoritative MITRE ATT&CK data)
+  try {
+    if (isStixLoaded()) {
+      const actor = getActorByName(actorName);
+      if (actor) {
+        const coverage = getActorCoverage(actor.actor_id);
+        const techniques = getActorTechniques(actor.actor_id);
+        const software = getSoftwareForActor(actor.actor_id);
+
+        return {
+          actor_name: actor.name,
+          found: true,
+          source: 'mitre_attack_stix',
+          aliases: actor.aliases,
+          description: actor.description,
+          technique_count: techniques.length,
+          techniques: techniques.slice(0, 30).map((t) => ({
+            technique_id: t.technique_id,
+            name: t.technique_name,
+            detection_count: t.detection_count,
+            covered: t.detection_count > 0,
+            tactics: t.tactics,
+          })),
+          software: software.slice(0, 20).map((s) => ({
+            name: s.name,
+            type: s.software_type,
+          })),
+          coverage_summary: {
+            total: coverage.total_techniques,
+            covered: coverage.covered_count,
+            gaps: coverage.gap_count,
+            percentage: coverage.coverage_percentage,
+          },
+        };
+      }
+    }
+  } catch {
+    // STIX tables may not exist — fall through to knowledge graph
+  }
+
+  // Fallback to knowledge graph
   const entityResult = openEntity(actorName);
 
   if (!entityResult || !entityResult.entity) {
     return {
       actor_name: actorName,
       found: false,
-      message: `No knowledge graph entry found for actor: ${actorName}`,
-      suggestion: 'Use knowledge graph tools to create an entity for this threat actor',
+      message: `No data found for actor: ${actorName}. Set ATTACK_STIX_PATH env var to load MITRE ATT&CK data, or use knowledge graph tools to create an entity manually.`,
     };
   }
 
   const { entity, relations, observations } = entityResult;
 
-  // Extract techniques from relations
   const techniques = relations.outgoing
     .filter((r) => r.relation_type === 'uses_technique' || r.relation_type === 'associated_with')
     .map((r) => r.to_entity);
 
-  // Extract related entities
   const relatedEntities = [
     ...relations.outgoing.map((r) => ({
       name: r.to_entity,
@@ -329,6 +378,7 @@ function getActorResource(actorName: string): unknown {
   return {
     actor_name: entity.name,
     found: true,
+    source: 'knowledge_graph',
     entity_type: entity.entity_type,
     created_at: entity.created_at,
     techniques,
@@ -518,6 +568,14 @@ export async function readResource(uri: string) {
   if (actorMatch) {
     const actorName = decodeURIComponent(actorMatch[1]);
     content = getActorResource(actorName);
+    return formatResourceResponse(uri, mimeType, content);
+  }
+
+  // Actor Navigator layer template: detection://navigator/actor/{actorName}
+  const actorNavigatorMatch = uri.match(/^detection:\/\/navigator\/actor\/(.+)$/);
+  if (actorNavigatorMatch) {
+    const actorName = decodeURIComponent(actorNavigatorMatch[1]);
+    content = generateNavigatorLayer({ name: `${actorName} Coverage`, actor_name: actorName });
     return formatResourceResponse(uri, mimeType, content);
   }
 

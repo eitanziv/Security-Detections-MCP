@@ -89,6 +89,9 @@ export {
   autoExtractProcedures,
   extractAllProcedures,
 
+  // Junction Tables
+  populateJunctionTables,
+
   // Lightweight Lists
   searchDetectionList,
   listDetectionsBySourceLight,
@@ -182,3 +185,28 @@ export {
   // Stats
   getPatternStats,
 } from './patterns.js';
+
+// =============================================================================
+// ATT&CK DATA (STIX-sourced)
+// =============================================================================
+
+export {
+  // Types
+  type AttackActor,
+  type AttackTechnique,
+  type AttackSoftware,
+  type ActorTechnique,
+  type ActorCoverageResult,
+  type ActorListItem,
+
+  // Queries
+  isStixLoaded,
+  getActorByName,
+  listActors,
+  getActorTechniques,
+  getActorCoverage,
+  getSoftwareForActor,
+  getTechniqueActors,
+  getAttackTechnique,
+  getAttackStats,
+} from './attack.js';

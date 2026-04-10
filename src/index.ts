@@ -16,7 +16,7 @@ import { registerAllTools, getToolsSummary } from './tools/index.js';
 import { initDb, closeDb } from './db/connection.js';
 import { indexDetections, needsIndexing } from './indexer.js';
 import { initPatternsSchema, getPatternStats } from './db/patterns.js';
-import { extractAllProcedures } from './db/detections.js';
+import { extractAllProcedures, populateJunctionTables } from './db/detections.js';
 
 // Parse comma-separated paths from env var
 function parsePaths(envVar: string | undefined): string[] {
@@ -32,6 +32,7 @@ const STORY_PATHS = parsePaths(process.env.STORY_PATHS);
 const KQL_PATHS = parsePaths(process.env.KQL_PATHS);
 const SUBLIME_PATHS = parsePaths(process.env.SUBLIME_PATHS);
 const CQL_HUB_PATHS = parsePaths(process.env.CQL_HUB_PATHS);
+const ATTACK_STIX_PATH = process.env.ATTACK_STIX_PATH;
 
 // Auto-index on startup if paths are configured and DB is empty
 function autoIndex(): void {
@@ -59,6 +60,25 @@ function autoIndex(): void {
     console.error('[security-detections-mcp] Extracting procedure-level coverage data...');
     const procResult = extractAllProcedures();
     console.error(`[security-detections-mcp] Procedures: ${procResult.procedures_generated} procedures across ${procResult.techniques_processed} techniques`);
+
+    // Populate junction tables for fast relational queries
+    console.error('[security-detections-mcp] Populating junction tables...');
+    const junctionResult = populateJunctionTables();
+    console.error(`[security-detections-mcp] Junction tables: ${junctionResult.detection_techniques} detection-technique links, ${junctionResult.technique_tactics} technique-tactic links`);
+  }
+}
+
+// Ingest MITRE ATT&CK STIX data if path is configured
+async function ingestStixData(): Promise<void> {
+  if (!ATTACK_STIX_PATH) return;
+
+  try {
+    const { ingestStixBundle } = await import('./parsers/stix.js');
+    console.error(`[security-detections-mcp] Ingesting ATT&CK STIX data from ${ATTACK_STIX_PATH}...`);
+    const stixResult = ingestStixBundle(ATTACK_STIX_PATH);
+    console.error(`[security-detections-mcp] STIX: ${stixResult.techniques} techniques, ${stixResult.actors} actors, ${stixResult.software} software, ${stixResult.actor_technique_links} actor-technique links`);
+  } catch (err) {
+    console.error(`[security-detections-mcp] STIX ingest failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -68,6 +88,9 @@ async function main() {
 
   // Auto-index if configured
   autoIndex();
+
+  // Ingest MITRE ATT&CK STIX data if configured
+  await ingestStixData();
 
   // Initialize patterns schema (Detection Engineering Intelligence)
   initPatternsSchema();

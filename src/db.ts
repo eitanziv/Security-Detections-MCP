@@ -1234,6 +1234,7 @@ export interface NavigatorLayerOptions {
   source_type?: 'sigma' | 'splunk_escu' | 'elastic';
   tactic?: string;
   severity?: string;
+  actor_name?: string;
 }
 
 export function generateNavigatorLayer(options: NavigatorLayerOptions): object {

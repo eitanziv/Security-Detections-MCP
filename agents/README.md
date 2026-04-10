@@ -253,7 +253,11 @@ The pipeline uses three MCPs (the first is always used; the second depends on yo
 - `identify_gaps` - Find gaps for threats
 - `analyze_procedure_coverage` - Break down which behaviors a detection actually catches within a technique
 - `compare_procedure_coverage` - Cross-source procedure matrix (which source catches which behaviors)
-- `generate_navigator_layer` - Export ATT&CK Navigator layer JSON
+- `generate_navigator_layer` - Export ATT&CK Navigator layer JSON (supports actor filtering)
+- `analyze_actor_coverage` - Coverage analysis against a specific MITRE ATT&CK threat actor
+- `list_actors` - Browse all 172 MITRE ATT&CK threat actors with technique counts
+- `compare_actor_coverage` - Compare coverage across multiple threat actors, find shared gaps
+- `get_actor_profile` - Full actor dossier: description, aliases, techniques, software, coverage
 
 ### splunk-mcp (Splunk only)
 - `run_detection` - Execute detection YAML

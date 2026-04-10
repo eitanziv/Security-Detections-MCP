@@ -57,6 +57,7 @@ export interface NavigatorLayerOptions {
   source_type?: 'sigma' | 'splunk_escu' | 'elastic' | 'kql' | 'sublime' | 'crowdstrike_cql';
   tactic?: string;
   severity?: string;
+  actor_name?: string;
 }
 
 export interface DetectionListItem {
@@ -310,15 +311,33 @@ export function listBySource(sourceType: 'sigma' | 'splunk_escu' | 'elastic' | '
  */
 export function listByMitre(techniqueId: string, limit: number = 100, offset: number = 0): Detection[] {
   const database = getDb();
-  
+
+  // Try junction table first (indexed join — faster)
+  try {
+    const check = database.prepare('SELECT 1 FROM detection_techniques LIMIT 1').get();
+    if (check) {
+      const rows = database.prepare(`
+        SELECT d.* FROM detections d
+        JOIN detection_techniques dt ON d.id = dt.detection_id
+        WHERE dt.technique_id = ?
+        ORDER BY d.name
+        LIMIT ? OFFSET ?
+      `).all(techniqueId, limit, offset) as Record<string, unknown>[];
+      return rows.map(rowToDetection);
+    }
+  } catch {
+    // Junction table may not exist yet — fall through to LIKE query
+  }
+
+  // Fallback: original LIKE-based query
   const stmt = database.prepare(`
-    SELECT * FROM detections 
-    WHERE mitre_ids LIKE ? 
-    ORDER BY name 
+    SELECT * FROM detections
+    WHERE mitre_ids LIKE ?
+    ORDER BY name
     LIMIT ? OFFSET ?
   `);
   const rows = stmt.all(`%"${techniqueId}"%`, limit, offset) as Record<string, unknown>[];
-  
+
   return rows.map(rowToDetection);
 }
 
@@ -857,13 +876,41 @@ export function analyzeCoverage(sourceType?: 'sigma' | 'splunk_escu' | 'elastic'
     }
   }
   
-  const tacticTotals: Record<string, number> = {
-    'reconnaissance': 10, 'resource-development': 8, 'initial-access': 10,
-    'execution': 14, 'persistence': 20, 'privilege-escalation': 14,
-    'defense-evasion': 43, 'credential-access': 17, 'discovery': 31,
-    'lateral-movement': 9, 'collection': 17, 'command-and-control': 18,
-    'exfiltration': 9, 'impact': 14
-  };
+  // Try dynamic tactic totals from technique_tactics table (populated from STIX or detections)
+  let tacticTotals: Record<string, number>;
+  try {
+    const ttRows = database.prepare(
+      'SELECT tactic_name, COUNT(DISTINCT technique_id) as count FROM technique_tactics GROUP BY tactic_name'
+    ).all() as Array<{ tactic_name: string; count: number }>;
+    if (ttRows.length > 0) {
+      tacticTotals = {};
+      for (const row of ttRows) {
+        tacticTotals[row.tactic_name] = row.count;
+      }
+      // Ensure all 14 tactics are present
+      for (const t of allTactics) {
+        if (!tacticTotals[t]) tacticTotals[t] = 1;
+      }
+    } else {
+      // Fallback to hardcoded if junction table is empty
+      tacticTotals = {
+        'reconnaissance': 10, 'resource-development': 8, 'initial-access': 10,
+        'execution': 14, 'persistence': 20, 'privilege-escalation': 14,
+        'defense-evasion': 43, 'credential-access': 17, 'discovery': 31,
+        'lateral-movement': 9, 'collection': 17, 'command-and-control': 18,
+        'exfiltration': 9, 'impact': 14
+      };
+    }
+  } catch {
+    // Table may not exist — fallback to hardcoded
+    tacticTotals = {
+      'reconnaissance': 10, 'resource-development': 8, 'initial-access': 10,
+      'execution': 14, 'persistence': 20, 'privilege-escalation': 14,
+      'defense-evasion': 43, 'credential-access': 17, 'discovery': 31,
+      'lateral-movement': 9, 'collection': 17, 'command-and-control': 18,
+      'exfiltration': 9, 'impact': 14
+    };
+  }
   
   const coverageByTactic: Record<string, { covered: number; total: number; percent: number }> = {};
   for (const tactic of allTactics) {
@@ -1009,15 +1056,60 @@ export function suggestDetections(
  * Generate an ATT&CK Navigator layer from detection coverage.
  */
 export function generateNavigatorLayer(options: NavigatorLayerOptions): object {
-  const techniqueIds = getTechniqueIds({
+  const database = getDb();
+
+  // If actor_name is specified, filter to only that actor's techniques
+  let actorTechniqueFilter: Set<string> | null = null;
+  if (options.actor_name) {
+    try {
+      // Dynamic import would be circular — query directly
+      const actorRow = database.prepare(
+        'SELECT actor_id FROM attack_actors WHERE name = ? COLLATE NOCASE'
+      ).get(options.actor_name) as { actor_id: string } | undefined;
+
+      if (!actorRow) {
+        // Try alias match
+        const aliasRow = database.prepare(
+          "SELECT actor_id FROM attack_actors WHERE aliases LIKE ? COLLATE NOCASE"
+        ).get(`%"${options.actor_name}"%`) as { actor_id: string } | undefined;
+        if (aliasRow) {
+          const actorTechs = database.prepare(
+            'SELECT technique_id FROM actor_techniques WHERE actor_id = ?'
+          ).all(aliasRow.actor_id) as Array<{ technique_id: string }>;
+          actorTechniqueFilter = new Set(actorTechs.map(r => r.technique_id));
+        }
+      } else {
+        const actorTechs = database.prepare(
+          'SELECT technique_id FROM actor_techniques WHERE actor_id = ?'
+        ).all(actorRow.actor_id) as Array<{ technique_id: string }>;
+        actorTechniqueFilter = new Set(actorTechs.map(r => r.technique_id));
+      }
+    } catch {
+      // STIX tables may not exist — ignore actor filter
+    }
+  }
+
+  let techniqueIds = getTechniqueIds({
     source_type: options.source_type,
     tactic: options.tactic,
     severity: options.severity,
   });
-  
-  const database = getDb();
+
+  // For actor layers, include ALL actor techniques (even uncovered ones)
+  if (actorTechniqueFilter) {
+    const coveredSet = new Set(techniqueIds);
+    // Merge: keep covered ones + add uncovered actor techniques
+    for (const actorTech of actorTechniqueFilter) {
+      if (!coveredSet.has(actorTech)) {
+        techniqueIds.push(actorTech);
+      }
+    }
+    // Filter to only actor techniques
+    techniqueIds = techniqueIds.filter(t => actorTechniqueFilter!.has(t));
+  }
+
   const techniques = [];
-  
+
   function getColorForScore(score: number): string {
     if (score >= 80) return '#1a8c1a';
     if (score >= 60) return '#8ec843';
@@ -1025,11 +1117,11 @@ export function generateNavigatorLayer(options: NavigatorLayerOptions): object {
     if (score >= 20) return '#ff9933';
     return '#ff6666';
   }
-  
+
   for (const techId of techniqueIds) {
     let countSql = 'SELECT COUNT(*) as count FROM detections WHERE mitre_ids LIKE ?';
     const countParams: string[] = [`%"${techId}"%`];
-    
+
     if (options.source_type) {
       countSql += ' AND source_type = ?';
       countParams.push(options.source_type);
@@ -1038,15 +1130,18 @@ export function generateNavigatorLayer(options: NavigatorLayerOptions): object {
       countSql += ' AND mitre_tactics LIKE ?';
       countParams.push(`%"${options.tactic}"%`);
     }
-    
+
     const count = (database.prepare(countSql).get(...countParams) as { count: number }).count;
     const score = Math.min(count * 20, 100);
-    
+
+    // For actor layers, uncovered techniques show as red with score 0
+    const isActorGap = actorTechniqueFilter && count === 0;
+
     techniques.push({
       techniqueID: techId,
       score,
-      comment: `${count} detection(s)`,
-      color: getColorForScore(score),
+      comment: isActorGap ? 'GAP - no detections' : `${count} detection(s)`,
+      color: isActorGap ? '#ff6666' : getColorForScore(score),
       enabled: true,
       showSubtechniques: false,
     });
@@ -1300,6 +1395,51 @@ export function extractAllProcedures(): { techniques_processed: number; procedur
   }
 
   return { techniques_processed: processed, procedures_generated: totalProcs, hand_curated_loaded: handCuratedCount };
+}
+
+// =============================================================================
+// JUNCTION TABLE POPULATION
+// =============================================================================
+
+/**
+ * Populate detection_techniques and technique_tactics junction tables
+ * from existing detection data. Runs as a post-indexing bulk operation
+ * in a single transaction for performance.
+ */
+export function populateJunctionTables(): { detection_techniques: number; technique_tactics: number } {
+  const database = getDb();
+
+  const rows = database.prepare(
+    "SELECT id, mitre_ids, mitre_tactics FROM detections WHERE mitre_ids IS NOT NULL AND mitre_ids != '[]'"
+  ).all() as { id: string; mitre_ids: string; mitre_tactics: string }[];
+
+  const dtStmt = database.prepare(
+    'INSERT OR IGNORE INTO detection_techniques (detection_id, technique_id) VALUES (?, ?)'
+  );
+  const ttStmt = database.prepare(
+    "INSERT OR IGNORE INTO technique_tactics (technique_id, tactic_name, source) VALUES (?, ?, 'detection')"
+  );
+
+  let dtCount = 0;
+  let ttCount = 0;
+
+  const batch = database.transaction(() => {
+    for (const row of rows) {
+      const ids = safeJsonParse<string[]>(row.mitre_ids, []);
+      const tactics = safeJsonParse<string[]>(row.mitre_tactics, []);
+      for (const techId of ids) {
+        dtStmt.run(row.id, techId);
+        dtCount++;
+        for (const tactic of tactics) {
+          ttStmt.run(techId, tactic);
+          ttCount++;
+        }
+      }
+    }
+  });
+  batch();
+
+  return { detection_techniques: dtCount, technique_tactics: ttCount };
 }
 
 // =============================================================================
