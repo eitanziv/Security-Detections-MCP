@@ -86,7 +86,7 @@ export default function McpSetupPage() {
           </div>
 
           <h1 className="font-[family-name:var(--font-display)] text-5xl md:text-7xl text-text-bright tracking-wide leading-none mb-4">
-            RUN IT <span className="text-amber">LOCALLY</span>
+            RUN IT <span className="text-amber">LOCALLY</span> <span className="text-text-dim">OR</span> <span className="text-green">HOSTED</span>
           </h1>
           <p className="text-text-dim text-lg max-w-2xl mx-auto leading-relaxed">
             The Security Detections MCP server gives your AI assistant direct access to 8,000+ detection rules,
@@ -94,6 +94,12 @@ export default function McpSetupPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mt-8">
+            <Link
+              href="/account/tokens"
+              className="bg-green hover:bg-green/80 text-bg font-bold px-8 py-3 rounded-[var(--radius-button)] text-lg transition-colors"
+            >
+              Get Hosted Token
+            </Link>
             <a
               href="https://github.com/MHaggis/Security-Detections-MCP"
               target="_blank"
@@ -114,14 +120,115 @@ export default function McpSetupPage() {
         </div>
       </section>
 
+      {/* Hosted MCP */}
+      <section className="py-16 border-t border-border">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="w-2 h-2 rounded-full bg-green animate-pulse-slow" />
+            <span className="font-[family-name:var(--font-mono)] text-xs text-green uppercase tracking-widest">
+              New &middot; Public Beta
+            </span>
+          </div>
+          <h2 className="font-[family-name:var(--font-display)] text-3xl text-text-bright tracking-wider mb-2 text-center">
+            HOSTED MCP — ZERO SETUP
+          </h2>
+          <p className="text-text-dim text-center mb-10 text-sm max-w-2xl mx-auto">
+            Skip the local install. Create an account, generate a token, paste one URL into your MCP client, and start
+            querying. Always in sync with the latest detection content.
+          </p>
+
+          <div className="space-y-0">
+            <Step number={1} title="SIGN IN & GENERATE TOKEN">
+              <p>
+                Sign in with email or GitHub, then visit{' '}
+                <Link href="/account/tokens" className="text-amber hover:underline">
+                  /account/tokens
+                </Link>
+                . Click <span className="text-amber font-bold">Generate</span>, name your token (e.g., &quot;Claude Desktop — laptop&quot;),
+                and copy it — it&apos;s shown exactly once.
+              </p>
+              <div className="bg-card border border-border rounded-[var(--radius-card)] p-4 mt-3">
+                <div className="text-text-dim text-xs font-[family-name:var(--font-mono)] mb-2">FREE TIER</div>
+                <div className="text-text text-sm">200 calls/day &middot; all read-only tools &middot; all 8,000+ detections</div>
+              </div>
+            </Step>
+
+            <Step number={2} title="POINT YOUR MCP CLIENT AT IT">
+              <p>Add this to your client config. No binary to install, no env vars, no local indexing.</p>
+
+              {/* Claude Desktop / Code */}
+              <div className="mt-4">
+                <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">Claude Desktop / Claude Code</div>
+                <CodeBlock title="claude_desktop_config.json" lang="json">{`{
+  "mcpServers": {
+    "security-detections": {
+      "url": "https://detect.michaelhaag.org/api/mcp/http",
+      "headers": {
+        "Authorization": "Bearer sdmcp_YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}`}</CodeBlock>
+              </div>
+
+              {/* Cursor */}
+              <div className="mt-4">
+                <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">Cursor IDE</div>
+                <CodeBlock title="~/.cursor/mcp.json" lang="json">{`{
+  "mcpServers": {
+    "security-detections": {
+      "url": "https://detect.michaelhaag.org/api/mcp/http",
+      "headers": {
+        "Authorization": "Bearer sdmcp_YOUR_TOKEN_HERE"
+      }
+    }
+  }
+}`}</CodeBlock>
+              </div>
+
+              {/* Test with curl */}
+              <div className="mt-4">
+                <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">Verify with curl</div>
+                <CodeBlock title="Terminal" lang="bash">{`curl -X POST https://detect.michaelhaag.org/api/mcp/http \\
+  -H "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE" \\
+  -H "Accept: application/json, text/event-stream" \\
+  -H "Content-Type: application/json" \\
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`}</CodeBlock>
+              </div>
+            </Step>
+
+            <Step number={3} title="ASK YOUR AI">
+              <p>Try these prompts in the client you just configured:</p>
+              <div className="space-y-2 mt-2">
+                <div className="bg-card border border-green/20 rounded-[var(--radius-card)] px-4 py-3 font-[family-name:var(--font-mono)] text-green text-sm">
+                  &quot;What&apos;s our coverage against APT29?&quot;
+                </div>
+                <div className="bg-card border border-green/20 rounded-[var(--radius-card)] px-4 py-3 font-[family-name:var(--font-mono)] text-green text-sm">
+                  &quot;Identify gaps for ransomware and suggest missing detections&quot;
+                </div>
+                <div className="bg-card border border-green/20 rounded-[var(--radius-card)] px-4 py-3 font-[family-name:var(--font-mono)] text-green text-sm">
+                  &quot;Generate a Navigator layer for our Sigma coverage&quot;
+                </div>
+              </div>
+            </Step>
+          </div>
+
+          <div className="bg-card border border-border rounded-[var(--radius-card)] p-4 mt-8 text-xs text-text-dim">
+            <span className="text-amber font-bold">~25 tools</span> are exposed on the hosted endpoint: search, list by MITRE
+            technique/tactic/CVE/process, coverage summary, gap analysis, actor profiles, Navigator layer export. Stateful tools (knowledge
+            graph, dynamic tables, custom templates) are local-only for now.
+          </div>
+        </div>
+      </section>
+
       {/* Quick Start */}
       <section className="py-16 border-t border-border">
         <div className="max-w-3xl mx-auto px-6">
           <h2 className="font-[family-name:var(--font-display)] text-3xl text-text-bright tracking-wider mb-2 text-center">
-            QUICK START
+            QUICK START &mdash; LOCAL
           </h2>
           <p className="text-text-dim text-center mb-10 text-sm">
-            Up and running in under 10 minutes. No account required.
+            Full 81-tool experience with your own detection repos. Up and running in under 10 minutes.
           </p>
 
           <div className="space-y-0">
