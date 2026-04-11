@@ -25,18 +25,12 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const supabase = createClient();
 
-  // Load recent conversations on mount
   useEffect(() => {
     loadConversations();
-  }, []);
-
-  // Check for conversation ID in URL params
-  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const convId = params.get('c');
-    if (convId) {
-      loadConversation(convId);
-    }
+    if (convId) loadConversation(convId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

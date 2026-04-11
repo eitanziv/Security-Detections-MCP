@@ -31,9 +31,10 @@ const PRO_MODELS: Record<string, string> = {
   'gpt-codex': 'openai/gpt-5.3-codex',
 };
 
+// Import decrypt — this module is only used server-side (chat API route)
+import { decrypt } from '@/lib/crypto';
+
 export function getModelConfig(profile: UserProfile | null): ModelConfig {
-  // Lazy import decrypt to avoid crypto module in client bundles
-  const { decrypt } = require('@/lib/crypto') as { decrypt: (s: string) => string };
 
   // BYOK: User has their own Claude API key
   if (profile?.claude_api_key_encrypted) {
