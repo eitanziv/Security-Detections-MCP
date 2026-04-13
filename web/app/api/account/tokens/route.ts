@@ -10,7 +10,7 @@ import { NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { generateToken } from '@/lib/mcp/tokens';
 
-const MAX_TOKENS_PER_USER = 10;
+const MAX_TOKENS_PER_USER = 1;
 const MAX_NAME_LENGTH = 64;
 
 export async function GET() {
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   if (countError) return Response.json({ error: countError.message }, { status: 500 });
   if ((count ?? 0) >= MAX_TOKENS_PER_USER) {
     return Response.json(
-      { error: `Token limit reached (${MAX_TOKENS_PER_USER} active). Revoke an existing token first.` },
+      { error: 'You already have an active token. Revoke it first to generate a new one.' },
       { status: 400 },
     );
   }

@@ -41,6 +41,13 @@ export default async function TokensPage() {
   const tier = (profile?.tier as string | undefined) ?? 'free';
   const dailyLimit = tier === 'admin' ? 100000 : tier === 'pro' ? 5000 : 200;
 
+  // User-level daily usage: sum calls_today across ALL tokens (including revoked)
+  // Only count tokens whose counter was reset today (stale ones are from yesterday)
+  const todayUTC = new Date().toISOString().slice(0, 10);
+  const userCallsToday = (tokens ?? []).reduce((sum: number, t: TokenRow) => {
+    return sum + (String(t.calls_reset_at).slice(0, 10) >= todayUTC ? t.calls_today : 0);
+  }, 0);
+
   return (
     <div className="max-w-3xl mx-auto animate-slide-up">
       <div className="flex items-center gap-3 mb-2">
@@ -83,7 +90,7 @@ export default async function TokensPage() {
         </div>
       </div>
 
-      <TokensManager initialTokens={(tokens as TokenRow[]) ?? []} dailyLimit={dailyLimit} />
+      <TokensManager initialTokens={(tokens as TokenRow[]) ?? []} dailyLimit={dailyLimit} userCallsToday={userCallsToday} />
 
       {/* Quick start */}
       <div className="bg-card border border-border rounded-[var(--radius-card)] p-6 mt-6">

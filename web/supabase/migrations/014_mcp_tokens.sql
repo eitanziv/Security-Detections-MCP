@@ -44,6 +44,9 @@ CREATE POLICY mcp_tokens_update_own ON mcp_tokens
 -- Returns JSON: { ok, token_id, user_id, remaining, tier } or { ok: false, reason }.
 -- Does everything in one round-trip: lookup by hash, check revocation, check
 -- daily quota, increment counter, update last_used_at.
+--
+-- Rate limit is enforced at the USER level — calls_today is summed across ALL
+-- tokens (including revoked) to prevent bypass via revoke-and-recreate.
 
 CREATE OR REPLACE FUNCTION increment_mcp_call(p_token_hash TEXT)
 RETURNS JSON AS $$
@@ -51,12 +54,12 @@ DECLARE
   v_token mcp_tokens%ROWTYPE;
   v_tier TEXT;
   v_limit INT;
+  v_user_calls INT;
 BEGIN
-  -- Lock the token row for atomic update
+  -- Look up the token
   SELECT * INTO v_token
   FROM mcp_tokens
-  WHERE token_hash = p_token_hash
-  FOR UPDATE;
+  WHERE token_hash = p_token_hash;
 
   IF NOT FOUND THEN
     RETURN json_build_object('ok', false, 'reason', 'invalid_token');
@@ -65,6 +68,9 @@ BEGIN
   IF v_token.revoked_at IS NOT NULL THEN
     RETURN json_build_object('ok', false, 'reason', 'revoked');
   END IF;
+
+  -- Lock ALL rows for this user to prevent concurrent bypass
+  PERFORM 1 FROM mcp_tokens WHERE user_id = v_token.user_id FOR UPDATE;
 
   -- Resolve limit from user tier
   SELECT tier INTO v_tier FROM profiles WHERE id = v_token.user_id;
@@ -80,26 +86,19 @@ BEGIN
     ELSE 200                                         -- free
   END;
 
-  -- Reset daily counter if new day
-  IF v_token.calls_reset_at < CURRENT_DATE THEN
-    UPDATE mcp_tokens
-      SET calls_today = 1,
-          calls_reset_at = CURRENT_DATE,
-          last_used_at = now(),
-          total_calls = total_calls + 1
-      WHERE id = v_token.id;
-    RETURN json_build_object(
-      'ok', true,
-      'token_id', v_token.id,
-      'user_id', v_token.user_id,
-      'tier', v_tier,
-      'limit', v_limit,
-      'remaining', v_limit - 1
-    );
-  END IF;
+  -- Reset daily counters for ALL of this user's tokens if new day
+  UPDATE mcp_tokens
+    SET calls_today = 0, calls_reset_at = CURRENT_DATE
+    WHERE user_id = v_token.user_id
+    AND calls_reset_at < CURRENT_DATE;
 
-  -- Quota check
-  IF v_token.calls_today >= v_limit THEN
+  -- Sum calls across ALL tokens for this user today (including revoked)
+  SELECT COALESCE(SUM(calls_today), 0) INTO v_user_calls
+  FROM mcp_tokens
+  WHERE user_id = v_token.user_id;
+
+  -- Quota check against user-level total
+  IF v_user_calls >= v_limit THEN
     RETURN json_build_object(
       'ok', false,
       'reason', 'quota_exceeded',
@@ -109,7 +108,7 @@ BEGIN
     );
   END IF;
 
-  -- Increment
+  -- Increment THIS token's counter
   UPDATE mcp_tokens
     SET calls_today = calls_today + 1,
         last_used_at = now(),
@@ -122,7 +121,7 @@ BEGIN
     'user_id', v_token.user_id,
     'tier', v_tier,
     'limit', v_limit,
-    'remaining', v_limit - (v_token.calls_today + 1)
+    'remaining', v_limit - (v_user_calls + 1)
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

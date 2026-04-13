@@ -18,9 +18,10 @@ type TokenRow = {
 interface Props {
   initialTokens: TokenRow[];
   dailyLimit: number;
+  userCallsToday: number;
 }
 
-export function TokensManager({ initialTokens, dailyLimit }: Props) {
+export function TokensManager({ initialTokens, dailyLimit, userCallsToday: initialUserCalls }: Props) {
   const router = useRouter();
   const [tokens, setTokens] = useState<TokenRow[]>(initialTokens);
   const [name, setName] = useState('');
@@ -28,6 +29,12 @@ export function TokensManager({ initialTokens, dailyLimit }: Props) {
   const [newToken, setNewToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userCalls] = useState(initialUserCalls);
+
+  const activeTokens = tokens.filter(t => !t.revoked_at);
+  const revokedTokens = tokens.filter(t => !!t.revoked_at);
+  const hasActiveToken = activeTokens.length > 0;
+  const usagePct = Math.min(100, Math.round((userCalls / dailyLimit) * 100));
 
   async function createToken() {
     setError(null);
@@ -96,29 +103,59 @@ export function TokensManager({ initialTokens, dailyLimit }: Props) {
 
   return (
     <div>
-      {/* Create form */}
+      {/* Daily usage — user-level (spans all tokens, including revoked) */}
       <div className="bg-card border border-border rounded-[var(--radius-card)] p-6 mb-6">
         <h2 className="font-[family-name:var(--font-display)] text-lg text-text-bright tracking-wider mb-3">
-          CREATE TOKEN
+          DAILY USAGE
         </h2>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., Claude Desktop — laptop"
-            maxLength={64}
-            className="flex-1 bg-bg2 border border-border focus:border-amber/50 rounded-[var(--radius-button)] px-4 py-2.5 text-text placeholder:text-text-dim/50 outline-none font-[family-name:var(--font-mono)] text-sm"
-          />
-          <button
-            onClick={createToken}
-            disabled={creating || !name.trim()}
-            className="bg-amber hover:bg-amber-dim disabled:opacity-50 text-bg font-bold px-5 py-2 rounded-[var(--radius-button)] transition-colors text-sm"
-          >
-            {creating ? 'Creating...' : 'Generate'}
-          </button>
+        <div className="flex items-center justify-between text-xs text-text-dim mb-2">
+          <span className="font-[family-name:var(--font-mono)]">TODAY</span>
+          <span className="font-[family-name:var(--font-mono)]">
+            {userCalls.toLocaleString()} / {dailyLimit.toLocaleString()}
+          </span>
         </div>
-        {error && <p className="text-red text-sm mt-2">{error}</p>}
+        <div className="h-2 bg-bg2 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${usagePct > 90 ? 'bg-red' : usagePct > 70 ? 'bg-amber' : 'bg-green'}`}
+            style={{ width: `${usagePct}%` }}
+          />
+        </div>
+        <p className="text-text-dim/50 text-xs mt-2 font-[family-name:var(--font-mono)]">
+          Resets at 00:00 UTC &middot; Limit is per-account across all tokens
+        </p>
+      </div>
+
+      {/* Create form — only shown if no active token */}
+      <div className="bg-card border border-border rounded-[var(--radius-card)] p-6 mb-6">
+        <h2 className="font-[family-name:var(--font-display)] text-lg text-text-bright tracking-wider mb-3">
+          {hasActiveToken ? 'YOUR TOKEN' : 'CREATE TOKEN'}
+        </h2>
+        {hasActiveToken ? (
+          <p className="text-text-dim text-sm font-[family-name:var(--font-mono)]">
+            1 active token per account. Revoke your current token below to generate a new one.
+          </p>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Claude Desktop — laptop"
+                maxLength={64}
+                className="flex-1 bg-bg2 border border-border focus:border-amber/50 rounded-[var(--radius-button)] px-4 py-2.5 text-text placeholder:text-text-dim/50 outline-none font-[family-name:var(--font-mono)] text-sm"
+              />
+              <button
+                onClick={createToken}
+                disabled={creating || !name.trim()}
+                className="bg-amber hover:bg-amber-dim disabled:opacity-50 text-bg font-bold px-5 py-2 rounded-[var(--radius-button)] transition-colors text-sm"
+              >
+                {creating ? 'Creating...' : 'Generate'}
+              </button>
+            </div>
+            {error && <p className="text-red text-sm mt-2">{error}</p>}
+          </>
+        )}
       </div>
 
       {/* Reveal dialog (shown once after creation) */}
@@ -152,79 +189,75 @@ export function TokensManager({ initialTokens, dailyLimit }: Props) {
         </div>
       )}
 
-      {/* Token list */}
-      <div className="bg-card border border-border rounded-[var(--radius-card)] p-6">
-        <h2 className="font-[family-name:var(--font-display)] text-lg text-text-bright tracking-wider mb-4">
-          ACTIVE TOKENS
-        </h2>
-        {tokens.length === 0 ? (
-          <p className="text-text-dim text-sm font-[family-name:var(--font-mono)]">
-            No tokens yet. Generate one above to get started.
-          </p>
-        ) : (
+      {/* Active tokens */}
+      {activeTokens.length > 0 && (
+        <div className="bg-card border border-border rounded-[var(--radius-card)] p-6 mb-6">
+          <h2 className="font-[family-name:var(--font-display)] text-lg text-text-bright tracking-wider mb-4">
+            ACTIVE TOKEN
+          </h2>
           <div className="space-y-3">
-            {tokens.map((t) => {
-              const revoked = !!t.revoked_at;
-              const pct = Math.min(100, Math.round((t.calls_today / dailyLimit) * 100));
-              return (
-                <div
-                  key={t.id}
-                  className={`border rounded p-4 ${revoked ? 'border-border/40 opacity-50' : 'border-border'}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-[family-name:var(--font-mono)] text-text text-sm font-bold truncate">
-                          {t.name}
-                        </span>
-                        {revoked && (
-                          <span className="text-red text-xs font-[family-name:var(--font-mono)] uppercase">revoked</span>
-                        )}
-                      </div>
-                      <div className="text-text-dim text-xs font-[family-name:var(--font-mono)] mt-1">
-                        {t.prefix}
-                        <span className="opacity-50">...</span>
-                      </div>
-                      <div className="text-text-dim text-xs mt-2 flex gap-4 flex-wrap">
-                        <span>Created {new Date(t.created_at).toLocaleDateString()}</span>
-                        <span>
-                          Last used{' '}
-                          {t.last_used_at ? new Date(t.last_used_at).toLocaleDateString() : 'never'}
-                        </span>
-                        <span>{t.total_calls.toLocaleString()} total calls</span>
-                      </div>
+            {activeTokens.map((t) => (
+              <div key={t.id} className="border border-border rounded p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <span className="font-[family-name:var(--font-mono)] text-text text-sm font-bold truncate">
+                      {t.name}
+                    </span>
+                    <div className="text-text-dim text-xs font-[family-name:var(--font-mono)] mt-1">
+                      {t.prefix}
+                      <span className="opacity-50">...</span>
                     </div>
-                    {!revoked && (
-                      <button
-                        onClick={() => revokeToken(t.id)}
-                        className="text-red hover:text-red-dim text-xs font-[family-name:var(--font-mono)] uppercase px-2 py-1 shrink-0"
-                      >
-                        Revoke
-                      </button>
-                    )}
+                    <div className="text-text-dim text-xs mt-2 flex gap-4 flex-wrap">
+                      <span>Created {new Date(t.created_at).toLocaleDateString()}</span>
+                      <span>
+                        Last used{' '}
+                        {t.last_used_at ? new Date(t.last_used_at).toLocaleDateString() : 'never'}
+                      </span>
+                      <span>{t.total_calls.toLocaleString()} total calls</span>
+                    </div>
                   </div>
-                  {!revoked && (
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between text-xs text-text-dim mb-1">
-                        <span className="font-[family-name:var(--font-mono)]">TODAY</span>
-                        <span className="font-[family-name:var(--font-mono)]">
-                          {t.calls_today} / {dailyLimit}
-                        </span>
-                      </div>
-                      <div className="h-1.5 bg-bg2 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full ${pct > 90 ? 'bg-red' : pct > 70 ? 'bg-amber' : 'bg-green'}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  )}
+                  <button
+                    onClick={() => revokeToken(t.id)}
+                    className="text-red hover:text-red-dim text-xs font-[family-name:var(--font-mono)] uppercase px-2 py-1 shrink-0"
+                  >
+                    Revoke
+                  </button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Revoked tokens */}
+      {revokedTokens.length > 0 && (
+        <div className="bg-card border border-border rounded-[var(--radius-card)] p-6">
+          <h2 className="font-[family-name:var(--font-display)] text-lg text-text-dim tracking-wider mb-4">
+            REVOKED TOKENS
+          </h2>
+          <div className="space-y-3">
+            {revokedTokens.map((t) => (
+              <div key={t.id} className="border border-border/40 rounded p-4 opacity-50">
+                <div className="flex items-center gap-2">
+                  <span className="font-[family-name:var(--font-mono)] text-text text-sm font-bold truncate">
+                    {t.name}
+                  </span>
+                  <span className="text-red text-xs font-[family-name:var(--font-mono)] uppercase">revoked</span>
+                </div>
+                <div className="text-text-dim text-xs font-[family-name:var(--font-mono)] mt-1">
+                  {t.prefix}
+                  <span className="opacity-50">...</span>
+                </div>
+                <div className="text-text-dim text-xs mt-2">
+                  Created {new Date(t.created_at).toLocaleDateString()}
+                  {' '}&middot;{' '}
+                  {t.total_calls.toLocaleString()} total calls
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
