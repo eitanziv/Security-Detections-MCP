@@ -1,17 +1,70 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (container: HTMLElement, options: Record<string, unknown>) => string;
+      reset: (widgetId: string) => void;
+      remove: (widgetId: string) => void;
+    };
+    onTurnstileLoad?: () => void;
+  }
+}
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  const renderWidget = useCallback(() => {
+    if (!turnstileRef.current || !window.turnstile) return;
+    if (widgetIdRef.current) {
+      window.turnstile.remove(widgetIdRef.current);
+    }
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: 'dark',
+      callback: (token: string) => setTurnstileToken(token),
+      'expired-callback': () => setTurnstileToken(null),
+      'error-callback': () => setTurnstileToken(null),
+      action: 'login',
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY) return;
+    if (window.turnstile) {
+      renderWidget();
+      return;
+    }
+    const existing = document.querySelector('script[src*="turnstile"]');
+    if (!existing) {
+      window.onTurnstileLoad = renderWidget;
+      const script = document.createElement('script');
+      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit';
+      script.async = true;
+      document.head.appendChild(script);
+    }
+    return () => {
+      if (widgetIdRef.current && window.turnstile) {
+        window.turnstile.remove(widgetIdRef.current);
+        widgetIdRef.current = null;
+      }
+    };
+  }, [renderWidget]);
 
   async function handleGitHubLogin() {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -23,10 +76,35 @@ export default function LoginPage() {
     if (error) setError(error.message);
   }
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  async function handleEmailLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError(null);
+
+    // Verify Turnstile token server-side
+    if (TURNSTILE_SITE_KEY && !turnstileToken) {
+      setError('Please complete the verification.');
+      setLoading(false);
+      return;
+    }
+
+    if (TURNSTILE_SITE_KEY && turnstileToken) {
+      const verifyRes = await fetch('/api/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: turnstileToken }),
+      });
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) {
+        setError('Verification failed. Please try again.');
+        setLoading(false);
+        if (widgetIdRef.current && window.turnstile) {
+          window.turnstile.reset(widgetIdRef.current);
+        }
+        setTurnstileToken(null);
+        return;
+      }
+    }
 
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -119,6 +197,13 @@ export default function LoginPage() {
               </Link>
             </div>
 
+            {/* Cloudflare Turnstile */}
+            {TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center">
+                <div ref={turnstileRef} />
+              </div>
+            )}
+
             {error && (
               <div className="bg-red/10 border border-red/30 rounded-[var(--radius-card)] px-4 py-2 text-red text-sm">
                 {error}
@@ -127,7 +212,7 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
               className="w-full bg-amber hover:bg-amber-dim disabled:opacity-50 text-bg font-bold py-3 rounded-[var(--radius-button)] transition-colors"
             >
               {loading ? 'Signing in...' : 'Sign In'}
