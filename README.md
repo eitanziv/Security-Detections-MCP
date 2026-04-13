@@ -10,7 +10,7 @@ An MCP (Model Context Protocol) server that lets LLMs query a unified database o
 
 **Local (full power)** — the npm package you're looking at. Runs on your machine, indexes your own detection repos, exposes all 81 tools. You need Node.js and ~10 minutes.
 
-**Hosted (zero setup)** — a Streamable HTTP server at [`detect.michaelhaag.org/api/mcp/http`](https://detect.michaelhaag.org/mcp). Sign up, generate a token, paste one URL into your MCP client. ~25 read-only tools, always in sync with the latest content, 200 calls/day free. Read on for quick-install buttons.
+**Hosted (zero setup)** — a Streamable HTTP server at [`detect.michaelhaag.org/api/mcp/mcp`](https://detect.michaelhaag.org/mcp). Sign up, generate a token, paste one URL into your MCP client. ~25 read-only tools, always in sync with the latest content, 200 calls/day free. Read on for quick-install buttons.
 
 ### Install — Local (Cursor)
 
@@ -29,7 +29,7 @@ An MCP (Model Context Protocol) server that lets LLMs query a unified database o
 
 ```bash
 claude mcp add --transport http security-detections \
-  https://detect.michaelhaag.org/api/mcp/http \
+  https://detect.michaelhaag.org/api/mcp/mcp \
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
 ```
 
@@ -43,7 +43,7 @@ claude mcp add --transport http security-detections \
       "args": [
         "-y",
         "mcp-remote",
-        "https://detect.michaelhaag.org/api/mcp/http",
+        "https://detect.michaelhaag.org/api/mcp/mcp",
         "--header",
         "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
       ]
@@ -56,7 +56,7 @@ claude mcp add --transport http security-detections \
 
 ```bash
 codex mcp add security-detections \
-  --transport http https://detect.michaelhaag.org/api/mcp/http \
+  --transport http https://detect.michaelhaag.org/api/mcp/mcp \
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
 ```
 

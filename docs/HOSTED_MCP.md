@@ -1,6 +1,6 @@
 # Hosted MCP Setup Guide
 
-A fully managed, public-facing Security Detections MCP server at **[`https://detect.michaelhaag.org/api/mcp/http`](https://detect.michaelhaag.org/api/mcp/http)**. No install, no indexing, always in sync with the latest detection content — just generate a token and point your AI client at the URL.
+A fully managed, public-facing Security Detections MCP server at **[`https://detect.michaelhaag.org/api/mcp/mcp`](https://detect.michaelhaag.org/api/mcp/mcp)**. No install, no indexing, always in sync with the latest detection content — just generate a token and point your AI client at the URL.
 
 > **Prefer local?** The npm package is still the full-power option (81 tools, offline, unlimited). See the main [README](../README.md) and [SETUP.md](../SETUP.md). The hosted endpoint is additive — everything in the local package is untouched.
 
@@ -29,7 +29,7 @@ Your MCP client
      │
      │ HTTPS — Authorization: Bearer sdmcp_xxx
      ▼
-/api/mcp/http  (Next.js route on Vercel, Streamable HTTP, stateless)
+/api/mcp/mcp  (Next.js route on Vercel, Streamable HTTP, stateless)
      │
      │ token hash → atomic rate-limit RPC
      ▼
@@ -66,7 +66,7 @@ After clicking, edit the installed server in **Cursor → Settings → MCP** and
 {
   "mcpServers": {
     "security-detections": {
-      "url": "https://detect.michaelhaag.org/api/mcp/http",
+      "url": "https://detect.michaelhaag.org/api/mcp/mcp",
       "headers": {
         "Authorization": "Bearer sdmcp_YOUR_TOKEN_HERE"
       }
@@ -89,7 +89,7 @@ After clicking, edit the installed server in VS Code and replace the placeholder
   "servers": {
     "security-detections": {
       "type": "http",
-      "url": "https://detect.michaelhaag.org/api/mcp/http",
+      "url": "https://detect.michaelhaag.org/api/mcp/mcp",
       "headers": {
         "Authorization": "Bearer sdmcp_YOUR_TOKEN_HERE"
       }
@@ -102,7 +102,7 @@ After clicking, edit the installed server in VS Code and replace the placeholder
 
 ```bash
 claude mcp add --transport http security-detections \
-  https://detect.michaelhaag.org/api/mcp/http \
+  https://detect.michaelhaag.org/api/mcp/mcp \
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
 ```
 
@@ -113,7 +113,7 @@ Verify with `claude mcp list`, then start Claude Code — the tools will be avai
   "mcpServers": {
     "security-detections": {
       "type": "http",
-      "url": "https://detect.michaelhaag.org/api/mcp/http",
+      "url": "https://detect.michaelhaag.org/api/mcp/mcp",
       "headers": {
         "Authorization": "Bearer sdmcp_YOUR_TOKEN_HERE"
       }
@@ -138,7 +138,7 @@ Claude Desktop (the Mac/Windows app) only speaks **stdio** MCP natively, not rem
       "args": [
         "-y",
         "mcp-remote",
-        "https://detect.michaelhaag.org/api/mcp/http",
+        "https://detect.michaelhaag.org/api/mcp/mcp",
         "--header",
         "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
       ]
@@ -157,7 +157,7 @@ Codex CLI and IDE extension support Streamable HTTP remote servers natively.
 
 ```bash
 codex mcp add security-detections \
-  --transport http https://detect.michaelhaag.org/api/mcp/http \
+  --transport http https://detect.michaelhaag.org/api/mcp/mcp \
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
 ```
 
@@ -166,7 +166,7 @@ codex mcp add security-detections \
 ```toml
 [mcp_servers.security-detections]
 type = "http"
-url = "https://detect.michaelhaag.org/api/mcp/http"
+url = "https://detect.michaelhaag.org/api/mcp/mcp"
 headers = { Authorization = "Bearer sdmcp_YOUR_TOKEN_HERE" }
 ```
 
@@ -174,7 +174,7 @@ headers = { Authorization = "Bearer sdmcp_YOUR_TOKEN_HERE" }
 
 Any client that speaks MCP Streamable HTTP (2025-03-26 spec or newer) will work. Give it:
 
-- **URL:** `https://detect.michaelhaag.org/api/mcp/http`
+- **URL:** `https://detect.michaelhaag.org/api/mcp/mcp`
 - **Header:** `Authorization: Bearer sdmcp_YOUR_TOKEN_HERE`
 - **Transport:** Streamable HTTP, stateless (no `Mcp-Session-Id` required)
 - **Protocol version:** The server negotiates up to `2025-11-25`; it accepts `2025-03-26`, `2025-06-18`, `2025-11-25`.
@@ -185,14 +185,14 @@ Before wiring up a client, smoke-test the endpoint with `curl`:
 
 ```bash
 # List tools (should return ~25 tools)
-curl -X POST https://detect.michaelhaag.org/api/mcp/http \
+curl -X POST https://detect.michaelhaag.org/api/mcp/mcp \
   -H "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE" \
   -H "Accept: application/json, text/event-stream" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 
 # Call a tool
-curl -X POST https://detect.michaelhaag.org/api/mcp/http \
+curl -X POST https://detect.michaelhaag.org/api/mcp/mcp \
   -H "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE" \
   -H "Accept: application/json, text/event-stream" \
   -H "Content-Type: application/json" \

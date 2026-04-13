@@ -30,7 +30,7 @@ function baseUrl(request: Request): string {
 export async function GET(request: Request): Promise<Response> {
   const origin = baseUrl(request);
   const metadata = {
-    resource: `${origin}/api/mcp/http`,
+    resource: `${origin}/api/mcp/mcp`,
     authorization_servers: [] as string[],
     bearer_methods_supported: ['header'],
     resource_name: 'Security Detections MCP',

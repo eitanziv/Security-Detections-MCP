@@ -93,7 +93,7 @@ export default async function AccountPage() {
         </h2>
         <p className="text-text-dim text-sm mb-4">
           Generate a token to connect your AI assistant (Claude Desktop, Cursor, Claude Code) directly to{' '}
-          <code className="text-amber font-[family-name:var(--font-mono)]">detect.michaelhaag.org/api/mcp/http</code>.
+          <code className="text-amber font-[family-name:var(--font-mono)]">detect.michaelhaag.org/api/mcp/mcp</code>.
           No install required.
         </p>
         <Link

@@ -213,7 +213,7 @@ export default function McpSetupPage() {
               <div className="mt-6">
                 <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">Claude Code (CLI one-liner)</div>
                 <CodeBlock title="Terminal" lang="bash">{`claude mcp add --transport http security-detections \\
-  https://detect.michaelhaag.org/api/mcp/http \\
+  https://detect.michaelhaag.org/api/mcp/mcp \\
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"`}</CodeBlock>
               </div>
 
@@ -230,7 +230,7 @@ export default function McpSetupPage() {
       "args": [
         "-y",
         "mcp-remote",
-        "https://detect.michaelhaag.org/api/mcp/http",
+        "https://detect.michaelhaag.org/api/mcp/mcp",
         "--header",
         "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"
       ]
@@ -243,21 +243,21 @@ export default function McpSetupPage() {
               <div className="mt-4">
                 <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">OpenAI Codex</div>
                 <CodeBlock title="Terminal" lang="bash">{`codex mcp add security-detections \\
-  --transport http https://detect.michaelhaag.org/api/mcp/http \\
+  --transport http https://detect.michaelhaag.org/api/mcp/mcp \\
   --header "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE"`}</CodeBlock>
                 <p className="text-text-dim text-xs mt-2">
                   Or edit <code className="text-amber">~/.codex/config.toml</code>:
                 </p>
                 <CodeBlock title="~/.codex/config.toml" lang="toml">{`[mcp_servers.security-detections]
 type = "http"
-url = "https://detect.michaelhaag.org/api/mcp/http"
+url = "https://detect.michaelhaag.org/api/mcp/mcp"
 headers = { Authorization = "Bearer sdmcp_YOUR_TOKEN_HERE" }`}</CodeBlock>
               </div>
 
               {/* Test with curl */}
               <div className="mt-4">
                 <div className="text-green font-[family-name:var(--font-mono)] text-sm font-bold mb-2">Verify with curl</div>
-                <CodeBlock title="Terminal" lang="bash">{`curl -X POST https://detect.michaelhaag.org/api/mcp/http \\
+                <CodeBlock title="Terminal" lang="bash">{`curl -X POST https://detect.michaelhaag.org/api/mcp/mcp \\
   -H "Authorization: Bearer sdmcp_YOUR_TOKEN_HERE" \\
   -H "Accept: application/json, text/event-stream" \\
   -H "Content-Type: application/json" \\
