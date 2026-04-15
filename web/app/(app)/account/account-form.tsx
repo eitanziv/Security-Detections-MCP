@@ -10,9 +10,10 @@ interface AccountFormProps {
   hasOpenaiKey: boolean;
   hasOpenrouterKey: boolean;
   preferredModel: string;
+  tier: string;
 }
 
-export function AccountForm({ displayName, hasClaudeKey, hasOpenaiKey, hasOpenrouterKey, preferredModel }: AccountFormProps) {
+export function AccountForm({ displayName, hasClaudeKey, hasOpenaiKey, hasOpenrouterKey, preferredModel, tier }: AccountFormProps) {
   const router = useRouter();
   const [name, setName] = useState(displayName);
   const [claudeKey, setClaudeKey] = useState('');
@@ -24,6 +25,19 @@ export function AccountForm({ displayName, hasClaudeKey, hasOpenaiKey, hasOpenro
   const [claudeSet, setClaudeSet] = useState(hasClaudeKey);
   const [openaiSet, setOpenaiSet] = useState(hasOpenaiKey);
   const [openrouterSet, setOpenrouterSet] = useState(hasOpenrouterKey);
+  const isProOrAdmin = tier === 'pro' || tier === 'admin';
+  const isFreeNoByok = !isProOrAdmin && !claudeSet && !openaiSet && !openrouterSet;
+
+  let autoOptionLabel = 'Auto (Default routing)';
+  if (claudeSet) {
+    autoOptionLabel = 'Auto (ignored while Claude BYOK key is set)';
+  } else if (openaiSet) {
+    autoOptionLabel = 'Auto (ignored while OpenAI BYOK key is set)';
+  } else if (openrouterSet || isProOrAdmin) {
+    autoOptionLabel = 'Auto (Claude Sonnet 4.6)';
+  } else if (isFreeNoByok) {
+    autoOptionLabel = 'Auto (Nemotron 3 Super 120B - Free default)';
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -130,12 +144,17 @@ export function AccountForm({ displayName, hasClaudeKey, hasOpenaiKey, hasOpenro
           onChange={(e) => setModel(e.target.value)}
           className="w-full bg-bg2 border border-border focus:border-amber/50 rounded-[var(--radius-button)] px-4 py-2.5 text-text outline-none font-[family-name:var(--font-mono)] text-sm"
         >
-          <option value="auto">Auto (Claude Sonnet 4.6)</option>
+          <option value="auto">{autoOptionLabel}</option>
           <option value="claude">Claude Sonnet 4.6</option>
           <option value="claude-opus">Claude Opus 4.6</option>
           <option value="gpt">GPT-5.4</option>
           <option value="gpt-codex">GPT-5.3 Codex</option>
         </select>
+        {isFreeNoByok && (
+          <p className="text-text-dim text-xs mt-2">
+            Free tier currently uses the free model pool with default <code className="text-amber">nvidia/nemotron-3-super-120b-a12b:free</code>.
+          </p>
+        )}
       </div>
 
       {/* Claude API Key */}

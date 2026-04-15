@@ -119,6 +119,7 @@ export default async function AccountPage() {
           hasOpenaiKey={!!profile?.openai_api_key_encrypted}
           hasOpenrouterKey={!!profile?.openrouter_api_key_encrypted}
           preferredModel={profile?.preferred_model || 'auto'}
+          tier={profile?.tier || 'free'}
         />
       </div>
     </div>
